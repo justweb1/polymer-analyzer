@@ -13,60 +13,60 @@
  */
 
 import * as dom5 from 'dom5';
-import {resolve as resolveUrl} from 'url';
+import { resolve as resolveUrl } from 'url';
 
-import {getAttachedCommentText, getLocationOffsetOfStartOfTextContent, ScannedImport, ScannedInlineDocument} from '../model/model';
+import { getAttachedCommentText, getLocationOffsetOfStartOfTextContent, ScannedImport, ScannedInlineDocument } from '../model/model';
 
-import {HtmlVisitor, ParsedHtmlDocument} from './html-document';
-import {HtmlScanner} from './html-scanner';
-import {ScannedScriptTagImport} from './html-script-tag';
+import { HtmlVisitor, ParsedHtmlDocument } from './html-document';
+import { HtmlScanner } from './html-scanner';
+import { ScannedScriptTagImport } from './html-script-tag';
 
 const p = dom5.predicates;
 
 const isJsScriptNode = p.AND(
-    p.hasTagName('script'),
-    p.OR(
-        p.NOT(p.hasAttr('type')),
-        p.hasAttrValue('type', 'text/javascript'),
-        p.hasAttrValue('type', 'application/javascript'),
-        p.hasAttrValue('type', 'module')));
+  p.hasTagName('script'),
+  p.OR(
+    p.NOT(p.hasAttr('type')),
+    p.hasAttrValue('type', 'text/javascript'),
+    p.hasAttrValue('type', 'application/javascript'),
+    p.hasAttrValue('type', 'module')));
 
 export class HtmlScriptScanner implements HtmlScanner {
   async scan(
-      document: ParsedHtmlDocument,
-      visit: (visitor: HtmlVisitor) => Promise<void>) {
-    const features: (ScannedImport|ScannedInlineDocument)[] = [];
+    document: ParsedHtmlDocument,
+    visit: (visitor: HtmlVisitor) => Promise<void>) {
+    const features: (ScannedImport | ScannedInlineDocument)[] = [];
 
     const myVisitor: HtmlVisitor = (node) => {
       if (isJsScriptNode(node)) {
         const src = dom5.getAttribute(node, 'src');
-        if (src) {
+        if (src && !src.startsWith('/__/')) {
           const importUrl = resolveUrl(document.baseUrl, src);
           features.push(new ScannedScriptTagImport(
-              'html-script',
-              importUrl,
-              document.sourceRangeForNode(node)!,
-              document.sourceRangeForAttributeValue(node, 'src')!,
-              node,
-              false));
+            'html-script',
+            importUrl,
+            document.sourceRangeForNode(node)!,
+            document.sourceRangeForAttributeValue(node, 'src')!,
+            node,
+            false));
         } else {
           const locationOffset = getLocationOffsetOfStartOfTextContent(node);
           const attachedCommentText = getAttachedCommentText(node) || '';
           const contents = dom5.getTextContent(node);
 
           features.push(new ScannedInlineDocument(
-              'js',
-              contents,
-              locationOffset,
-              attachedCommentText,
-              document.sourceRangeForNode(node)!,
-              node));
+            'js',
+            contents,
+            locationOffset,
+            attachedCommentText,
+            document.sourceRangeForNode(node)!,
+            node));
         }
       }
     };
 
     await visit(myVisitor);
 
-    return {features};
+    return { features };
   }
 }
